@@ -9,8 +9,8 @@ import (
 // Sample syscalls
 var read = specs.LinuxSyscall { Names: []string{"read"} }
 var write = specs.LinuxSyscall {  Names: []string{"write"} }
-var exit = specs.LinuxSyscall { Names: []string{"exit"} }
-var getuid = specs.LinuxSyscall { Names: []string{"getuid"} }
+var _ = specs.LinuxSyscall { Names: []string{"exit"} }
+var _ = specs.LinuxSyscall { Names: []string{"getuid"} }
 var uname = specs.LinuxSyscall { Names: []string{"uname"} }
 var pipe = specs.LinuxSyscall { Names: []string{"pipe"} }
 var mmap = specs.LinuxSyscall { Names: []string{"mmap"} }
