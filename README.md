@@ -1,1 +1,1 @@
-# seccomp-compare
+# seccompare
