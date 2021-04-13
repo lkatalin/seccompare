@@ -6,70 +6,127 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// Sample syscalls
-var read = specs.LinuxSyscall { Names: []string{"read"} }
-var write = specs.LinuxSyscall {  Names: []string{"write"} }
-var _ = specs.LinuxSyscall { Names: []string{"exit"} }
-var _ = specs.LinuxSyscall { Names: []string{"getuid"} }
-var uname = specs.LinuxSyscall { Names: []string{"uname"} }
-var pipe = specs.LinuxSyscall { Names: []string{"pipe"} }
-var mmap = specs.LinuxSyscall { Names: []string{"mmap"} }
-var getpid = specs.LinuxSyscall { Names: []string{"getpid"} }
-var brk = specs.LinuxSyscall { Names: []string{"brk"} }
-var getrandom = specs.LinuxSyscall { Names: []string{"getrandom"} }
+// Sample LinuxSecompActions
+var defAction specs.LinuxSeccompAction = "defAction"
+var otherAction specs.LinuxSeccompAction = "otherAction"
 
-// Sample syscall slices
-var sysvecDefault = []specs.LinuxSyscall {pipe, mmap, getpid, brk, getrandom}
-var sysvecLessStrict1 = []specs.LinuxSyscall {read, write} // read, write ∉ default set
-var sysvecLessStrict2 = []specs.LinuxSyscall {pipe, mmap, getpid, brk, getrandom, uname} // uname ∉ default set
-var sysvecMoreStrict = []specs.LinuxSyscall {pipe, mmap} // ⊂ default set 
-var sysvecSame = []specs.LinuxSyscall {pipe, mmap, getpid, brk, getrandom} // ⊆ default set
+// Sample seccomp rules
+var dfltRule = specs.LinuxSyscall { Names: []string{"exit", "getuid"}, Action: defAction}
+
+var stricter1Rule = specs.LinuxSyscall { Names: []string{"exit"}, Action: defAction}
+var stricter2Rule = specs.LinuxSyscall { Names: []string{"getuid"}, Action: defAction}
+
+var identicalRule = specs.LinuxSyscall { Names: []string{"exit", "getuid"}, Action: defAction}
+
+var otherRule1 = specs.LinuxSyscall { Names: []string{"exit", "getuid"}, Action: otherAction}
+var otherRule2 = specs.LinuxSyscall { Names: []string{"getuid"}, Action: otherAction}
+var otherRule3 = specs.LinuxSyscall { Names: []string{"exit"}}
+
+var diffSyscalls1Rule = specs.LinuxSyscall { Names: []string{"read", "write"}, Action: defAction}
+var diffSyscalls2Rule = specs.LinuxSyscall { Names: []string{"exit", "getuid", "read"}, Action: defAction}
 
 // Sample seccomp profiles
-var seccompDefault = specs.LinuxSeccomp {
-	Syscalls: sysvecDefault,
+var dflt = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{dfltRule},
 }
 
-var seccompLessStrict1 = specs.LinuxSeccomp {
-	Syscalls: sysvecLessStrict1,
+var stricter1 = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{stricter1Rule},
 }
 
-var seccompLessStrict2 = specs.LinuxSeccomp {
-	Syscalls: sysvecLessStrict2,
+var stricter2 = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{stricter2Rule},
 }
 
-var seccompMoreStrict = specs.LinuxSeccomp {
-	Syscalls: sysvecMoreStrict,
+var identical = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{identicalRule},
 }
 
-var seccompSame = specs.LinuxSeccomp {
-	Syscalls: sysvecSame,
+var diffRule1 = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{otherRule1},
 }
 
-func TestContains(t *testing.T) {
-	if contains(sysvecDefault, read) {
-		t.Errorf("Error: sysvecDefault should not contain read call")
+var diffRule2 = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{otherRule2},
+}
+
+var diffRule3 = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{otherRule3},
+}
+
+var diffSyscalls1 = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{diffSyscalls1Rule},
+}
+
+var diffSyscalls2 = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{diffSyscalls2Rule},
+}
+
+var multiRuleIdentical = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{stricter1Rule, stricter2Rule},
+}
+
+var multiRuleDifferent = specs.LinuxSeccomp {
+	Syscalls: []specs.LinuxSyscall{stricter1Rule, otherRule2},
+}
+
+// Tests
+func TestCompareIdentical(t *testing.T) {
+	if !cmp.Equal(compare(dflt, identical), dflt) {
+		t.Errorf("Error: comparison with identical should return default")
 	}
+}
 
-	if !contains(sysvecDefault, pipe) {
-		t.Errorf("Error: sysvecDefault should contain pipe call")
+func TestCompareStricter1(t *testing.T) {
+	if !cmp.Equal(compare(dflt, stricter1), stricter1) {
+		t.Errorf("Error: profile stricter1 should be more strict than default")
 	}
 }
 
-func TestCompare(t *testing.T) {
-	if !cmp.Equal(compare(seccompLessStrict1, seccompDefault), seccompDefault) {
-		t.Errorf("Error: seccompLessStrict1 should be less strict than default")
+func TestCompareStricter2(t *testing.T) {
+	if !cmp.Equal(compare(dflt, stricter2), stricter2) {
+		t.Errorf("Error: profile stricter2 should be more strict than default")
 	}
+}
 
-	if !cmp.Equal(compare(seccompLessStrict2, seccompDefault), seccompDefault) {
-		t.Errorf("Error: seccompLessStrict2 should be less strict than default")
+func TestCompareDiffRule1(t *testing.T) {
+	if !cmp.Equal(compare(dflt, diffRule1), dflt) {
+		t.Errorf("Error: profile diffrule1 should be less strict than default")
 	}
+}
 
-	if !cmp.Equal(compare(seccompMoreStrict, seccompDefault), seccompMoreStrict) {
-		t.Errorf("Error: seccompMoreStrict should be more strict than default")
+func TestCompareDiffRule2(t *testing.T) {
+	if !cmp.Equal(compare(dflt, diffRule2), dflt) {
+		t.Errorf("Error: profile diffrule2 should be less strict than default")
 	}
+}
 
-	if !cmp.Equal(compare(seccompSame, seccompDefault), seccompDefault) {
-		t.Errorf("Error: profiles are the same, so Default should be returned")
+func TestCompareDiffRule3(t *testing.T) {
+	if !cmp.Equal(compare(dflt, diffRule3), dflt) {
+		t.Errorf("Error: profile diffrule3 should be less strict than default")
+	}
+}
+
+func TestCompareDiffSyscalls1(t *testing.T) {
+	if !cmp.Equal(compare(dflt, diffSyscalls1), dflt) {
+		t.Errorf("Error: profile diffsyscalls1 should be less strict than default")
+	}
+}
+
+func TestCompareDiffSyscalls2(t *testing.T) {
+	if !cmp.Equal(compare(dflt, diffSyscalls2), dflt) {
+		t.Errorf("Error: profile diffsyscalls2 should be less strict than default")
+	}
+}
+
+func TestCompareMultiRuleIdentical(t *testing.T) {
+	if !cmp.Equal(compare(dflt, multiRuleIdentical), dflt) {
+		t.Errorf("Error: comparison with identical should return default")
+	}
+}
+
+func TestCompareMultiRuleDifferent(t *testing.T) {
+	if !cmp.Equal(compare(dflt, multiRuleDifferent), dflt) {
+		t.Errorf("Error: comparison with multiruledifferent should return default")
 	}
 }
